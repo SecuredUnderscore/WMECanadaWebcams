@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         WME Canada Webcams
-// @version      3.6.10
+// @version      3.7.0
 // @description  WME Canada Webcams. Toggle On/Off through the layers sidebar. Provincial Cameras: Blue; Local Cameras: Orange. No required dependencies. Written by ThatVictoriaGuy (Discord: Secured_). Feel free to send new source requests to my Discord.
 // @author       ThatVictoriaGuy (Discord: Secured_)
 // @require      https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.0/papaparse.min.js
@@ -209,6 +209,64 @@
 
     //
     // UI
+    let popupPosition = null; // Last dragged position, so the popup stays put when switching views/refreshing
+
+    function makeDraggable(popup) {
+        if (!document.getElementById("canada-webcams-popup-style")) {
+            const style = document.createElement("style");
+            style.id = "canada-webcams-popup-style";
+            style.textContent = ".canada-webcams-popup { cursor: move; user-select: none; }"
+                + " .canada-webcams-popup a, .canada-webcams-popup button, .canada-webcams-popup input { cursor: pointer; }";
+            document.head.appendChild(style);
+        }
+        popup.classList.add("canada-webcams-popup");
+
+        if (popupPosition) { movePopup(popup, popupPosition.left, popupPosition.top); }
+
+        // Keep the popup on screen when its content changes size (image load, replay frames, etc.)
+        new ResizeObserver(() => {
+            if (popup.style.transform === "none") {
+                movePopup(popup, parseFloat(popup.style.left), parseFloat(popup.style.top));
+            }
+        }).observe(popup);
+
+        let startX, startY, startLeft, startTop;
+
+        // Drag only from the popup's white space, never from the image, video, buttons or slider
+        popup.addEventListener("mousedown", (e) => {
+            if (e.button !== 0 || e.target.closest("a, img, video, button, input, select, textarea")) { return; }
+            e.preventDefault(); // Prevent text selection while dragging
+            const rect = popup.getBoundingClientRect();
+            startX = e.clientX;
+            startY = e.clientY;
+            startLeft = rect.left;
+            startTop = rect.top;
+            document.addEventListener("mousemove", onMouseMove);
+            document.addEventListener("mouseup", onMouseUp);
+        });
+
+        function onMouseMove(e) {
+            movePopup(popup, startLeft + e.clientX - startX, startTop + e.clientY - startY);
+        }
+
+        function onMouseUp() {
+            document.removeEventListener("mousemove", onMouseMove);
+            document.removeEventListener("mouseup", onMouseUp);
+            if (popup.style.transform === "none") {
+                popupPosition = { left: parseFloat(popup.style.left), top: parseFloat(popup.style.top) };
+            }
+        }
+    }
+
+    function movePopup(popup, left, top) {
+        // Clamp so the popup always stays fully inside the browser window
+        const maxLeft = Math.max(0, window.innerWidth - popup.offsetWidth);
+        const maxTop = Math.max(0, window.innerHeight - popup.offsetHeight);
+        popup.style.transform = "none";
+        popup.style.left = Math.min(Math.max(0, left), maxLeft) + "px";
+        popup.style.top = Math.min(Math.max(0, top), maxTop) + "px";
+    }
+
     function showCameraDetails(camera, cameras, camera_index) {
         const existingPopup = document.getElementById("camera-details-popup");
         if (existingPopup) {
@@ -313,6 +371,7 @@
         detailsDiv.appendChild(closeButton);
 
         document.body.appendChild(detailsDiv);
+        makeDraggable(detailsDiv);
     }
 
     function showReplayPlayer(camera){
@@ -357,6 +416,7 @@
         detailsDiv.appendChild(closeButton);
 
         document.body.appendChild(detailsDiv);
+        makeDraggable(detailsDiv);
     }
 
     function showDriveBCReplayPlayer(camera){
@@ -392,6 +452,7 @@
         detailsDiv.appendChild(closeButtonLoading);
 
         document.body.appendChild(detailsDiv);
+        makeDraggable(detailsDiv);
 
         // Fetch frame list from DriveBC API
         GM_xmlhttpRequest({
