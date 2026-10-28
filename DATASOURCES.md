@@ -14,7 +14,7 @@ Camera data is hardcoded in `script.js` as parallel arrays per source (IDs, lati
 | York Region, ON | `York*` | 394 | [York Open Data: Traffic MapServer layer 0](https://ww8.yorkmaps.ca/arcgis/rest/services/OpenData/Traffic/MapServer/0/query?f=json&where=1%3D1&returnGeometry=true&outFields=*&outSR=4326) | `https://ww5.yorkmaps.ca/webtrafficimages/loc` | 2026-10-28 |
 | City of Ottawa | `Ottawa*` | 402 | `https://traffic.ottawa.ca/map/service/camera` (CITY-owned only) | `https://traffic.ottawa.ca/camera?id=` | 2026-10-28 |
 | City of Calgary | `Calgary*` | 219 | [Calgary Open Data: Traffic Cameras (k7p9-kppz)](https://data.calgary.ca/resource/k7p9-kppz.json?$limit=5000) + unlisted live cameras | `https://trafficcam.calgary.ca/` | 2026-10-28 |
-| Alberta 511 | `ABProvincial*` | 582 | `https://511.alberta.ca/map/mapIcons/Cameras` + `/tooltip/Cameras/<site>` | `https://511.alberta.ca/map/Cctv/` | 2026-10-28 |
+| Alberta 511 | `ABProvincial*` | 392 | `https://511.alberta.ca/map/mapIcons/Cameras` + `/tooltip/Cameras/<site>`, minus City of Calgary copies | `https://511.alberta.ca/map/Cctv/` | 2026-10-28 |
 | Ontario 511 | `ONProvincial*` | 1663 | `https://511on.ca/List/GetData/Cameras` (paged, 100 per page) | `https://511on.ca/map/Cctv/` | 2026-10-28 |
 | Québec 511 | `QuebecProvincial*` | 680 | Québec 511 open data: Camera (GeoJSON) | `https://www.quebec511.info/Images/Cameras/` | 2026-10-28 |
 | Manitoba 511 | `MBProvincial*` | 46 | `https://www.manitoba511.ca/List/GetData/Cameras` (cross-check: `/map/mapIcons/Cameras`) | `https://www.manitoba511.ca/map/Cctv/` | 2026-10-28 |
@@ -80,7 +80,11 @@ Cameras that are listed but temporarily offline still serve a placeholder image 
 - `/map/mapIcons/Cameras` gives camera sites (`itemId`, location). Each site's `/tooltip/Cameras/<itemId>?lang=en` lists its views as `data-lazy="/map/Cctv/<id>"`, each under a `dirDescHeader`.
 - Orientation: "X side of HWY" → the opposite direction (the way the camera faces); "NB/SB/EB/WB, …" → facing oncoming traffic; anything else uses the header text as-is.
 - The tooltip endpoint rate-limits (HTTP 429). Fetch slowly.
-- The 511.alberta.ca `/api/v2/get/cameras` API needs a key.
+- The 511.alberta.ca `/api/v2/get/cameras` API needs a key. `List/GetData/Cameras` returns HTTP 500 on this deployment.
+- **Remove City of Calgary copies.** Alberta 511 republishes many City of Calgary cameras, serving the city's exact image file (840×630, red "Calgary" logo). To find them, download every City of Calgary camera, then every Alberta 511 view, then the city cameras again. Drop each Alberta view that is byte-identical (same MD5) to a city frame from either pass, and ignore hashes shared by several cameras within one source (offline placeholders).
+  - Neither the ArcGIS `Source` field nor location works: city copies are also tagged `USER`/`Alberta511`, and provincial cameras can sit at the same interchange as a city camera (e.g. view 97 vs `loc188`).
+  - On 2026-10-28 this removed 190 views (582 → 392), including view 423, which Alberta 511 places at Glenmore Tr / 14 St SW but which shows `loc25` (Stoney Tr / 88 St SE).
+  - Kept: views 416, 418, 635, 645 copy the stale city cameras `loc19`, `loc20`, `loc159`, `loc169`, which aren't in the Calgary layer, so they aren't duplicate pins.
 
 ### Ontario 511
 - `List/GetData/Cameras?query=<json>&lang=en-US` caps `length` at 100. Page through with `start` until reaching `recordsTotal`.
@@ -96,4 +100,4 @@ Cameras that are listed but temporarily offline still serve a placeholder image 
 - quebec511.info is behind Cloudflare, which blocks scripted requests. Check images in a browser.
 
 ## Known issues
-- **Calgary / Alberta 511 overlap:** 188 of the 217 Calgary cameras (before loc210/loc223 were added) have an Alberta 511 camera within 150 m, because Alberta 511 republishes City of Calgary cameras. They are probably duplicate pins. Decision (2026-10-28): keep both layers' pins separate; no de-duplication. (Before the 2026-10-28 refresh, the Calgary arrays also didn't line up: 192 IDs but only 100 coordinates, so 92 cameras never loaded.)
+- **Calgary / Alberta 511 overlap:** 188 of the 217 Calgary cameras (before loc210/loc223 were added) have an Alberta 511 camera within 150 m, because Alberta 511 republishes City of Calgary cameras. Resolved (2026-10-28): Alberta 511 views that are byte-identical copies of a City of Calgary camera were removed, keeping the Calgary pin (see the Alberta 511 refresh notes). Only 6 Calgary cameras still have an Alberta 511 camera within 150 m, and those are different (provincial) cameras. (Before the 2026-10-28 refresh, the Calgary arrays also didn't line up: 192 IDs but only 100 coordinates, so 92 cameras never loaded.)
